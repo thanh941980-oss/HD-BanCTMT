@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Hoạt động</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- SheetJS để xuất Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Giữ nguyên toàn bộ CSS như trước */
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            font-size: 16px;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--secondary-color), #4a6491);
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            box-shadow: var(--box-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            flex: 1;
+            text-align: center;
+            font-weight: 600;
+            transition: var(--transition);
+            min-width: 140px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tab.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: var(--success-color);
+        }
+        
+        .tab:hover:not(.active) {
+            background-color: #f1f1f1;
+        }
+        
+        .tab-content {
+            display: none;
+            background-color: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 18px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: var(--secondary-color);
+            font-size: 0.95rem;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px; /* Ngăn chặn zoom trên iOS */
+            transition: var(--transition);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .unit-container {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .unit-container select {
+            flex: 1;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background-color: #d35400;
+        }
+        
+        .btn-add {
+            background-color: var(--success-color);
+            color: white;
+            width: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        th {
+            background-color: var(--light-color);
+            font-weight: 600;
+            color: var(--secondary-color);
+            position: sticky;
+            top: 0;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .actions button {
+            padding: 6px 10px;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-item {
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        .password-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .password-modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .password-form {
+            background-color: white;
+            padding: 25px;
+            border-radius: var(--border-radius);
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .password-form h3 {
+            margin-bottom: 20px;
+            text-align: center;
+            color: var(--secondary-color);
+        }
+        
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .subtitle {
+                font-size: 0.9rem;
+            }
+            
+            .tab {
+                padding: 10px 15px;
+                min-width: 120px;
+                font-size: 0.9rem;
+            }
+            
+            .tab-content {
+                padding: 15px;
+            }
+            
+            .filter-group {
+                flex-direction: column;
+            }
+            
+            .filter-item {
+                min-width: 100%;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+            
+            .actions button {
+                width: 100%;
+            }
+            
+            th, td {
+                padding: 10px 12px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                min-width: 100%;
+            }
+            
+            .unit-container {
+                flex-direction: column;
+            }
+            
+            .btn-add {
+                width: 100%;
+                height: 45px;
+            }
+            
+            .password-form {
+                padding: 20px;
+            }
+        }
+        
+        /* Tối ưu hóa cho điện thoại */
+        @media (max-width: 360px) {
+            .container {
+                padding: 8px;
+            }
+            
+            .tab-content {
+                padding: 12px;
+            }
+            
+            th, td {
+                padding: 8px 10px;
+                font-size: 0.9rem;
+            }
+            
+            .btn {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+        }
+        
+        /* Tối ưu hóa cho màn hình lớn */
+        @media (min-width: 1200px) {
+            .container {
+                padding: 20px;
+            }
+        }
+        
+        /* Hiệu ứng cho các phần tử tương tác */
+        .btn, .tab, input, select, textarea {
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Tối ưu hiệu suất cuộn */
+        .table-container {
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Tối ưu hiển thị trên iOS */
+        input, select, textarea {
+            -webkit-appearance: none;
+            border-radius: 6px;
+        }
+        
+        /* Tối ưu cho trình đọc màn hình */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Quản lý Hoạt động</h1>
+            <p class="subtitle">Hệ thống quản lý và tổng hợp hoạt động theo đơn vị</p>
+        </header>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="quan-ly">Quản lý Hoạt động</div>
+            <div class="tab" data-tab="tong-hop">Tổng hợp (Admin)</div>
+        </div>
+        
+        <div class="tab-content active" id="quan-ly">
+            <div class="alert" id="alert-message"></div>
+            
+            <div class="form-group">
+                <label for="don-vi">Tên đơn vị:</label>
+                <div class="unit-container">
+                    <select id="don-vi">
+                        <option value="">-- Chọn đơn vị --</option>
+                        <!-- Đơn vị sẽ được tải từ Firebase -->
+                    </select>
+                    <button class="btn btn-add" id="them-don-vi" aria-label="Thêm đơn vị mới">+</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="ngay-hoat-dong">Ngày hoạt động:</label>
+                <input type="date" id="ngay-hoat-dong">
+            </div>
+            
+            <div class="form-group">
+                <label for="noi-dung">Nội dung hoạt động:</label>
+                <textarea id="noi-dung" placeholder="Nhập nội dung hoạt động..."></textarea>
+            </div>
+            
+            <button class="btn btn-primary" id="luu-hoat-dong">Lưu hoạt động</button>
+            
+            <h2 style="margin-top: 25px; font-size: 1.3rem;">Danh sách hoạt động đã lưu</h2>
+            <div class="table-container">
+                <table id="bang-hoat-dong">
+                    <thead>
+                        <tr>
+                            <th>Đơn vị</th>
+                            <th>Ngày</th>
+                            <th>Nội dung</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="danh-sach-hoat-dong">
+                        <!-- Dữ liệu sẽ được thêm vào đây -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tong-hop">
+            <div class="filter-group">
+                <div class="filter-item">
+                    <label for="loc-don-vi">Lọc theo đơn vị:</label>
+                    <select id="loc-don-vi">
+                        <option value="">Tất cả đơn vị</option>
+                        <!-- Đơn vị sẽ được tải từ Firebase -->
+                    </select>
+                </div>
+                
+                <div class="filter-item">
+                    <label for="tu-ngay">Từ ngày:</label>
+                    <input type="date" id="tu-ngay">
+                </div>
+                
+                <div class="filter-item">
+                    <label for="den-ngay">Đến ngày:</label>
+                    <input type="date" id="den-ngay">
+                </div>
+            </div>
+            
+            <button class="btn btn-success" id="xuat-excel">
+                <span>Xuất file Excel</span>
+            </button>
+            
+            <div class="table-container">
+                <table id="bang-tong-hop">
+                    <thead>
+                        <tr>
+                            <th>Đơn vị</th>
+                            <th>Ngày</th>
+                            <th>Nội dung</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ket-qua-tong-hop">
+                        <!-- Dữ liệu tổng hợp sẽ được thêm vào đây -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="password-modal" id="password-modal">
+            <div class="password-form">
+                <h3>Nhập mật khẩu Admin</h3>
+                <div class="form-group">
+                    <input type="password" id="admin-password" placeholder="Nhập mật khẩu">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" id="xac-nhan-password">Xác nhận</button>
+                    <button class="btn btn-danger" id="huy-password">Hủy</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal thêm đơn vị mới -->
+        <div class="password-modal" id="them-don-vi-modal">
+            <div class="password-form">
+                <h3>Thêm đơn vị mới</h3>
+                <div class="form-group">
+                    <input type="text" id="ten-don-vi-moi" placeholder="Nhập tên đơn vị mới">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" id="luu-don-vi-moi">Lưu</button>
+                    <button class="btn btn-danger" id="huy-don-vi-moi">Hủy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cấu hình Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDJmOU4dYqZSEc88SIrsh0Ip3bXfpaiSL0",
+            authDomain: "quan-ly-cong-van-e9a2a.firebaseapp.com",
+            databaseURL: "https://quan-ly-cong-van-e9a2a-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "quan-ly-cong-van-e9a2a",
+            storageBucket: "quan-ly-cong-van-e9a2a.firebasestorage.app",
+            messagingSenderId: "432020762484",
+            appId: "1:432020762484:web:f056ed28cc4d8820c58621"
+        };
+
+        // Khởi tạo Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Biến toàn cục
+        let activities = [];
+        let units = []; // Mảng lưu trữ danh sách đơn vị
+        let currentEditId = null;
+        const ADMIN_PASSWORD = "admin123"; // Mật khẩu admin
+
+        // DOM Elements
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const passwordModal = document.getElementById('password-modal');
+        const adminPasswordInput = document.getElementById('admin-password');
+        const xacNhanPasswordBtn = document.getElementById('xac-nhan-password');
+        const huyPasswordBtn = document.getElementById('huy-password');
+        const themDonViBtn = document.getElementById('them-don-vi');
+        const themDonViModal = document.getElementById('them-don-vi-modal');
+        const luuDonViMoiBtn = document.getElementById('luu-don-vi-moi');
+        const huyDonViMoiBtn = document.getElementById('huy-don-vi-moi');
+        const tenDonViMoiInput = document.getElementById('ten-don-vi-moi');
+        const luuHoatDongBtn = document.getElementById('luu-hoat-dong');
+        const xuatExcelBtn = document.getElementById('xuat-excel');
+        const alertMessage = document.getElementById('alert-message');
+        const donViSelect = document.getElementById('don-vi');
+        const locDonViSelect = document.getElementById('loc-don-vi');
+
+        // Sự kiện chuyển tab
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+                
+                if (tabId === 'tong-hop') {
+                    // Chuyển thẳng sang tab tổng hợp không cần mật khẩu
+                    switchTab(tabId);
+                    loadTongHopData();
+                    return;
+                }
+                
+                // Chuyển tab bình thường
+                switchTab(tabId);
+            });
+        });
+
+        // Hàm chuyển tab
+        function switchTab(tabId) {
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            
+            document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // Mở modal thêm đơn vị mới
+        themDonViBtn.addEventListener('click', () => {
+            themDonViModal.classList.add('active');
+            tenDonViMoiInput.focus();
+        });
+
+        // Lưu đơn vị mới
+        luuDonViMoiBtn.addEventListener('click', () => {
+            const tenDonViMoi = tenDonViMoiInput.value.trim();
+            if (tenDonViMoi) {
+                // Lưu đơn vị mới vào Firebase
+                database.ref('units').push({
+                    name: tenDonViMoi,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                })
+                .then(() => {
+                    themDonViModal.classList.remove('active');
+                    tenDonViMoiInput.value = '';
+                    showAlert('Đã thêm đơn vị mới thành công!', 'success');
+                })
+                .catch(error => {
+                    showAlert('Lỗi khi thêm đơn vị: ' + error.message, 'error');
+                });
+            } else {
+                showAlert('Vui lòng nhập tên đơn vị!', 'error');
+                tenDonViMoiInput.focus();
+            }
+        });
+
+        // Hủy thêm đơn vị mới
+        huyDonViMoiBtn.addEventListener('click', () => {
+            themDonViModal.classList.remove('active');
+            tenDonViMoiInput.value = '';
+        });
+
+        // Lưu hoạt động - ĐÃ SỬA: Lưu tất cả trong node 'units'
+        luuHoatDongBtn.addEventListener('click', () => {
+            const donVi = document.getElementById('don-vi').value;
+            const ngayHoatDong = document.getElementById('ngay-hoat-dong').value;
+            const noiDung = document.getElementById('noi-dung').value.trim();
+            
+            if (!donVi || !ngayHoatDong || !noiDung) {
+                showAlert('Vui lòng điền đầy đủ thông tin!', 'error');
+                return;
+            }
+            
+            // Vô hiệu hóa nút để tránh click nhiều lần
+            luuHoatDongBtn.disabled = true;
+            luuHoatDongBtn.innerHTML = '<span class="loading"></span> Đang xử lý...';
+            
+            const activityData = {
+                name: donVi, // Tên đơn vị
+                ngay: ngayHoatDong,
+                noidung: noiDung,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                type: 'activity' // Đánh dấu đây là hoạt động
+            };
+            
+            if (currentEditId) {
+                // Cập nhật hoạt động hiện có
+                database.ref('units/' + currentEditId).update(activityData)
+                    .then(() => {
+                        showAlert('Cập nhật hoạt động thành công!', 'success');
+                        resetForm();
+                    })
+                    .catch(error => {
+                        showAlert('Lỗi khi cập nhật: ' + error.message, 'error');
+                    })
+                    .finally(() => {
+                        luuHoatDongBtn.disabled = false;
+                        luuHoatDongBtn.textContent = 'Lưu hoạt động';
+                    });
+            } else {
+                // Thêm hoạt động mới vào node units
+                database.ref('units').push(activityData)
+                    .then(() => {
+                        showAlert('Lưu hoạt động thành công!', 'success');
+                        resetForm();
+                    })
+                    .catch(error => {
+                        showAlert('Lỗi khi lưu: ' + error.message, 'error');
+                    })
+                    .finally(() => {
+                        luuHoatDongBtn.disabled = false;
+                        luuHoatDongBtn.textContent = 'Lưu hoạt động';
+                    });
+            }
+        });
+
+        // Xuất file Excel
+        xuatExcelBtn.addEventListener('click', () => {
+            const locDonVi = document.getElementById('loc-don-vi').value;
+            const tuNgay = document.getElementById('tu-ngay').value;
+            const denNgay = document.getElementById('den-ngay').value;
+            
+            // Lọc dữ liệu theo điều kiện
+            let filteredData = filterData(locDonVi, tuNgay, denNgay);
+            
+            if (filteredData.length === 0) {
+                showAlert('Không có dữ liệu để xuất!', 'error');
+                return;
+            }
+            
+            // Hiển thị trạng thái loading
+            xuatExcelBtn.disabled = true;
+            xuatExcelBtn.innerHTML = '<span class="loading"></span> Đang xuất...';
+            
+            // Chuẩn bị dữ liệu cho Excel
+            const excelData = filteredData.map(activity => ({
+                'Đơn vị': activity.name,
+                'Ngày': activity.ngay,
+                'Nội dung': activity.noidung
+            }));
+            
+            // Tạo worksheet
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            
+            // Tạo workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Hoạt động');
+            
+            // Xuất file
+            setTimeout(() => {
+                XLSX.writeFile(wb, 'tong_hop_hoat_dong.xlsx');
+                showAlert('Xuất file Excel thành công!', 'success');
+                xuatExcelBtn.disabled = false;
+                xuatExcelBtn.innerHTML = '<span>Xuất file Excel</span>';
+            }, 500);
+        });
+
+        // Tải danh sách đơn vị và hoạt động từ Firebase - ĐÃ SỬA: Chỉ dùng node 'units'
+        function loadData() {
+            database.ref('units').on('value', snapshot => {
+                units = [];
+                activities = [];
+                
+                // Xóa tất cả option trừ option đầu tiên
+                while (donViSelect.children.length > 1) {
+                    donViSelect.removeChild(donViSelect.lastChild);
+                }
+                while (locDonViSelect.children.length > 1) {
+                    locDonViSelect.removeChild(locDonViSelect.lastChild);
+                }
+                
+                if (snapshot.exists()) {
+                    snapshot.forEach(childSnapshot => {
+                        const item = childSnapshot.val();
+                        item.id = childSnapshot.key;
+                        
+                        // Phân loại dữ liệu: đơn vị hoặc hoạt động
+                        if (item.type === 'activity') {
+                            // Đây là hoạt động
+                            activities.push(item);
+                        } else {
+                            // Đây là đơn vị
+                            units.push(item);
+                            
+                            // Thêm vào select đơn vị (chỉ thêm nếu chưa tồn tại)
+                            if (!Array.from(donViSelect.options).some(opt => opt.value === item.name)) {
+                                const option = document.createElement('option');
+                                option.value = item.name;
+                                option.textContent = item.name;
+                                donViSelect.appendChild(option);
+                            }
+                            
+                            // Thêm vào select lọc trong tab tổng hợp (chỉ thêm nếu chưa tồn tại)
+                            if (!Array.from(locDonViSelect.options).some(opt => opt.value === item.name)) {
+                                const optionLoc = document.createElement('option');
+                                optionLoc.value = item.name;
+                                optionLoc.textContent = item.name;
+                                locDonViSelect.appendChild(optionLoc);
+                            }
+                        }
+                    });
+                }
+                
+                // Cập nhật danh sách hoạt động
+                updateActivitiesList();
+            });
+        }
+
+        // Cập nhật danh sách hoạt động
+        function updateActivitiesList() {
+            const danhSachHoatDong = document.getElementById('danh-sach-hoat-dong');
+            danhSachHoatDong.innerHTML = '';
+            
+            if (activities.length === 0) {
+                danhSachHoatDong.innerHTML = '<tr><td colspan="4" class="no-data">Chưa có hoạt động nào được lưu</td></tr>';
+                return;
+            }
+            
+            activities.forEach(activity => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${activity.name}</td>
+                    <td>${formatDate(activity.ngay)}</td>
+                    <td>${activity.noidung}</td>
+                    <td class="actions">
+                        <button class="btn btn-warning btn-sua" data-id="${activity.id}">Sửa</button>
+                        <button class="btn btn-danger btn-xoa" data-id="${activity.id}">Xóa</button>
+                    </td>
+                `;
+                danhSachHoatDong.appendChild(row);
+            });
+            
+            // Thêm sự kiện cho nút sửa và xóa
+            document.querySelectorAll('.btn-sua').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.getAttribute('data-id');
+                    editActivity(id);
+                });
+            });
+            
+            document.querySelectorAll('.btn-xoa').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.getAttribute('data-id');
+                    showDeleteModal(id);
+                });
+            });
+        }
+
+        // Hiển thị modal xác nhận xóa với mật khẩu admin
+        function showDeleteModal(id) {
+            passwordModal.classList.add('active');
+            adminPasswordInput.focus();
+            
+            // Xử lý xác nhận xóa
+            const confirmDelete = () => {
+                const password = adminPasswordInput.value.trim();
+                if (password === ADMIN_PASSWORD) {
+                    deleteActivity(id);
+                    passwordModal.classList.remove('active');
+                    adminPasswordInput.value = '';
+                    
+                    // Xóa sự kiện tạm thời
+                    xacNhanPasswordBtn.removeEventListener('click', confirmDelete);
+                } else {
+                    showAlert('Mật khẩu không đúng!', 'error');
+                    adminPasswordInput.focus();
+                }
+            };
+            
+            // Thêm sự kiện xác nhận
+            xacNhanPasswordBtn.addEventListener('click', confirmDelete);
+            
+            // Hủy xóa
+            const cancelDelete = () => {
+                passwordModal.classList.remove('active');
+                adminPasswordInput.value = '';
+                
+                // Xóa sự kiện tạm thời
+                xacNhanPasswordBtn.removeEventListener('click', confirmDelete);
+                huyPasswordBtn.removeEventListener('click', cancelDelete);
+            };
+            
+            huyPasswordBtn.addEventListener('click', cancelDelete);
+        }
+
+        // Tải dữ liệu tổng hợp
+        function loadTongHopData() {
+            const ketQuaTongHop = document.getElementById('ket-qua-tong-hop');
+            ketQuaTongHop.innerHTML = '';
+            
+            if (activities.length === 0) {
+                ketQuaTongHop.innerHTML = '<tr><td colspan="3" class="no-data">Không có dữ liệu để hiển thị</td></tr>';
+                return;
+            }
+            
+            // Lấy giá trị lọc
+            const locDonVi = document.getElementById('loc-don-vi').value;
+            const tuNgay = document.getElementById('tu-ngay').value;
+            const denNgay = document.getElementById('den-ngay').value;
+            
+            // Lọc dữ liệu
+            const filteredData = filterData(locDonVi, tuNgay, denNgay);
+            
+            if (filteredData.length === 0) {
+                ketQuaTongHop.innerHTML = '<tr><td colspan="3" class="no-data">Không tìm thấy kết quả phù hợp</td></tr>';
+                return;
+            }
+            
+            // Hiển thị kết quả
+            filteredData.forEach(activity => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${activity.name}</td>
+                    <td>${formatDate(activity.ngay)}</td>
+                    <td>${activity.noidung}</td>
+                `;
+                ketQuaTongHop.appendChild(row);
+            });
+        }
+
+        // Hàm lọc dữ liệu
+        function filterData(locDonVi, tuNgay, denNgay) {
+            let filteredData = [...activities];
+            
+            if (locDonVi) {
+                filteredData = filteredData.filter(activity => activity.name === locDonVi);
+            }
+            
+            if (tuNgay) {
+                filteredData = filteredData.filter(activity => activity.ngay >= tuNgay);
+            }
+            
+            if (denNgay) {
+                filteredData = filteredData.filter(activity => activity.ngay <= denNgay);
+            }
+            
+            return filteredData;
+        }
+
+        // Sửa hoạt động
+        function editActivity(id) {
+            const activity = activities.find(a => a.id === id);
+            if (activity) {
+                document.getElementById('don-vi').value = activity.name;
+                document.getElementById('ngay-hoat-dong').value = activity.ngay;
+                document.getElementById('noi-dung').value = activity.noidung;
+                currentEditId = id;
+                luuHoatDongBtn.textContent = 'Cập nhật hoạt động';
+                
+                // Cuộn lên đầu form
+                document.getElementById('quan-ly').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // Xóa hoạt động
+        function deleteActivity(id) {
+            database.ref('units/' + id).remove()
+                .then(() => {
+                    showAlert('Đã xóa hoạt động thành công!', 'success');
+                })
+                .catch(error => {
+                    showAlert('Lỗi khi xóa: ' + error.message, 'error');
+                });
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('ngay-hoat-dong').value = '';
+            document.getElementById('noi-dung').value = '';
+            currentEditId = null;
+            luuHoatDongBtn.textContent = 'Lưu hoạt động';
+        }
+
+        // Hiển thị thông báo
+        function showAlert(message, type) {
+            alertMessage.textContent = message;
+            alertMessage.className = 'alert';
+            alertMessage.classList.add(type === 'success' ? 'alert-success' : 'alert-error');
+            alertMessage.style.display = 'block';
+            
+            // Ẩn thông báo sau 5 giây
+            setTimeout(() => {
+                alertMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        // Định dạng ngày tháng
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('vi-VN');
+        }
+
+        // Thêm sự kiện cho các bộ lọc trong tab tổng hợp
+        document.getElementById('loc-don-vi').addEventListener('change', loadTongHopData);
+        document.getElementById('tu-ngay').addEventListener('change', loadTongHopData);
+        document.getElementById('den-ngay').addEventListener('change', loadTongHopData);
+
+        // Khởi tạo ứng dụng
+        function initApp() {
+            loadData();
+            
+            // Đặt ngày mặc định
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('ngay-hoat-dong').value = today;
+            
+            // Đặt tuần mặc định cho tab tổng hợp
+            const firstDay = new Date();
+            firstDay.setDate(firstDay.getDate() - 7);
+            document.getElementById('tu-ngay').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('den-ngay').value = today;
+        }
+
+        // Khởi chạy ứng dụng
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
