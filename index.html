@@ -384,6 +384,19 @@
             transform: none !important;
         }
         
+        /* Thêm style cho cảnh báo trường bắt buộc */
+        .required-field {
+            border-color: var(--danger-color) !important;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.2) !important;
+        }
+        
+        .field-error {
+            color: var(--danger-color);
+            font-size: 0.85rem;
+            margin-top: 5px;
+            display: none;
+        }
+        
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
@@ -534,16 +547,19 @@
                     </select>
                     <button class="btn btn-add" id="them-don-vi" aria-label="Thêm đơn vị mới" disabled>+</button> 
                 </div>
+                <div class="field-error" id="don-vi-error">Vui lòng chọn đơn vị</div>
             </div>
             
             <div class="form-group">
                 <label for="ngay-hoat-dong">Ngày hoạt động:</label>
                 <input type="date" id="ngay-hoat-dong">
+                <div class="field-error" id="ngay-hoat-dong-error">Vui lòng chọn ngày hoạt động</div>
             </div>
             
             <div class="form-group">
                 <label for="noi-dung">Nội dung hoạt động:</label>
                 <textarea id="noi-dung" placeholder="Nhập nội dung hoạt động..."></textarea>
+                <div class="field-error" id="noi-dung-error">Vui lòng nhập nội dung hoạt động</div>
             </div>
             
             <button class="btn btn-primary" id="luu-hoat-dong">Lưu hoạt động</button>
@@ -626,6 +642,7 @@
                 <h3>Thêm đơn vị mới</h3>
                 <div class="form-group">
                     <input type="text" id="ten-don-vi-moi" placeholder="Nhập tên đơn vị mới">
+                    <div class="field-error" id="ten-don-vi-moi-error">Vui lòng nhập tên đơn vị</div>
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn btn-primary" id="luu-don-vi-moi">Lưu</button>
@@ -675,6 +692,12 @@
         const donViSelect = document.getElementById('don-vi');
         const locDonViSelect = document.getElementById('loc-don-vi');
 
+        // Các phần tử lỗi
+        const donViError = document.getElementById('don-vi-error');
+        const ngayHoatDongError = document.getElementById('ngay-hoat-dong-error');
+        const noiDungError = document.getElementById('noi-dung-error');
+        const tenDonViMoiError = document.getElementById('ten-don-vi-moi-error');
+
         // Sự kiện chuyển tab
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -705,35 +728,49 @@
         themDonViBtn.addEventListener('click', () => {
             themDonViModal.classList.add('active');
             tenDonViMoiInput.focus();
+            resetFieldErrors(); // Reset lỗi khi mở modal
         });
 
         // Lưu đơn vị mới
         luuDonViMoiBtn.addEventListener('click', () => {
             const tenDonViMoi = tenDonViMoiInput.value.trim();
-            if (tenDonViMoi) {
-                // Lưu đơn vị mới vào Firebase
-                database.ref('units').push({
-                    name: tenDonViMoi,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                })
-                .then(() => {
-                    themDonViModal.classList.remove('active');
-                    tenDonViMoiInput.value = '';
-                    showAlert('Đã thêm đơn vị mới thành công!', 'success');
-                })
-                .catch(error => {
-                    showAlert('Lỗi khi thêm đơn vị: ' + error.message, 'error');
-                });
+            let hasError = false;
+            
+            // Kiểm tra trường bắt buộc
+            if (!tenDonViMoi) {
+                tenDonViMoiInput.classList.add('required-field');
+                tenDonViMoiError.style.display = 'block';
+                hasError = true;
             } else {
-                showAlert('Vui lòng nhập tên đơn vị!', 'error');
-                tenDonViMoiInput.focus();
+                tenDonViMoiInput.classList.remove('required-field');
+                tenDonViMoiError.style.display = 'none';
             }
+            
+            if (hasError) {
+                tenDonViMoiInput.focus();
+                return;
+            }
+            
+            // Lưu đơn vị mới vào Firebase
+            database.ref('units').push({
+                name: tenDonViMoi,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            })
+            .then(() => {
+                themDonViModal.classList.remove('active');
+                tenDonViMoiInput.value = '';
+                showAlert('Đã thêm đơn vị mới thành công!', 'success');
+            })
+            .catch(error => {
+                showAlert('Lỗi khi thêm đơn vị: ' + error.message, 'error');
+            });
         });
 
         // Hủy thêm đơn vị mới
         huyDonViMoiBtn.addEventListener('click', () => {
             themDonViModal.classList.remove('active');
             tenDonViMoiInput.value = '';
+            resetFieldErrors(); // Reset lỗi khi hủy
         });
 
         // Lưu hoạt động - ĐÃ SỬA: Lưu tất cả trong node 'units'
@@ -742,7 +779,37 @@
             const ngayHoatDong = document.getElementById('ngay-hoat-dong').value;
             const noiDung = document.getElementById('noi-dung').value.trim();
             
-            if (!donVi || !ngayHoatDong || !noiDung) {
+            // Kiểm tra các trường bắt buộc
+            let hasError = false;
+            
+            if (!donVi) {
+                donViSelect.classList.add('required-field');
+                donViError.style.display = 'block';
+                hasError = true;
+            } else {
+                donViSelect.classList.remove('required-field');
+                donViError.style.display = 'none';
+            }
+            
+            if (!ngayHoatDong) {
+                document.getElementById('ngay-hoat-dong').classList.add('required-field');
+                ngayHoatDongError.style.display = 'block';
+                hasError = true;
+            } else {
+                document.getElementById('ngay-hoat-dong').classList.remove('required-field');
+                ngayHoatDongError.style.display = 'none';
+            }
+            
+            if (!noiDung) {
+                document.getElementById('noi-dung').classList.add('required-field');
+                noiDungError.style.display = 'block';
+                hasError = true;
+            } else {
+                document.getElementById('noi-dung').classList.remove('required-field');
+                noiDungError.style.display = 'none';
+            }
+            
+            if (hasError) {
                 showAlert('Vui lòng điền đầy đủ thông tin!', 'error');
                 return;
             }
@@ -1023,6 +1090,9 @@
                 currentEditId = id;
                 luuHoatDongBtn.textContent = 'Cập nhật hoạt động';
                 
+                // Reset các cảnh báo lỗi khi sửa
+                resetFieldErrors();
+                
                 // Cuộn lên đầu form
                 document.getElementById('quan-ly').scrollIntoView({ behavior: 'smooth' });
             }
@@ -1045,6 +1115,26 @@
             document.getElementById('noi-dung').value = '';
             currentEditId = null;
             luuHoatDongBtn.textContent = 'Lưu hoạt động';
+            
+            // Reset các cảnh báo lỗi
+            resetFieldErrors();
+        }
+
+        // Reset tất cả cảnh báo lỗi
+        function resetFieldErrors() {
+            // Reset các trường trong form chính
+            donViSelect.classList.remove('required-field');
+            donViError.style.display = 'none';
+            
+            document.getElementById('ngay-hoat-dong').classList.remove('required-field');
+            ngayHoatDongError.style.display = 'none';
+            
+            document.getElementById('noi-dung').classList.remove('required-field');
+            noiDungError.style.display = 'none';
+            
+            // Reset các trường trong modal thêm đơn vị
+            tenDonViMoiInput.classList.remove('required-field');
+            tenDonViMoiError.style.display = 'none';
         }
 
         // Hiển thị thông báo
@@ -1070,6 +1160,35 @@
         document.getElementById('loc-don-vi').addEventListener('change', loadTongHopData);
         document.getElementById('tu-ngay').addEventListener('change', loadTongHopData);
         document.getElementById('den-ngay').addEventListener('change', loadTongHopData);
+
+        // Thêm sự kiện input để xóa cảnh báo khi người dùng bắt đầu nhập
+        document.getElementById('don-vi').addEventListener('change', function() {
+            if (this.value) {
+                this.classList.remove('required-field');
+                donViError.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('ngay-hoat-dong').addEventListener('change', function() {
+            if (this.value) {
+                this.classList.remove('required-field');
+                ngayHoatDongError.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('noi-dung').addEventListener('input', function() {
+            if (this.value.trim()) {
+                this.classList.remove('required-field');
+                noiDungError.style.display = 'none';
+            }
+        });
+        
+        tenDonViMoiInput.addEventListener('input', function() {
+            if (this.value.trim()) {
+                this.classList.remove('required-field');
+                tenDonViMoiError.style.display = 'none';
+            }
+        });
 
         // Khởi tạo ứng dụng
         function initApp() {
