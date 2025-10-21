@@ -397,6 +397,48 @@
             display: none;
         }
         
+        /* Phân trang */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            margin: 0 15px;
+            color: var(--secondary-color);
+            font-size: 0.9rem;
+        }
+        
+        .page-btn {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background-color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .page-btn:hover:not(.disabled) {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .page-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .page-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
@@ -440,6 +482,20 @@
             th, td {
                 padding: 10px 12px;
             }
+            
+            .pagination {
+                gap: 5px;
+            }
+            
+            .page-btn {
+                padding: 6px 10px;
+                font-size: 0.9rem;
+            }
+            
+            .pagination-info {
+                margin: 0 10px;
+                font-size: 0.8rem;
+            }
         }
         
         @media (max-width: 480px) {
@@ -462,6 +518,11 @@
             
             .password-form {
                 padding: 20px;
+            }
+            
+            .pagination {
+                flex-direction: column;
+                gap: 10px;
             }
         }
         
@@ -580,6 +641,11 @@
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Phân trang cho danh sách hoạt động -->
+            <div class="pagination" id="pagination-hoat-dong">
+                <!-- Phân trang sẽ được tạo bằng JavaScript -->
+            </div>
         </div>
         
         <div class="tab-content" id="tong-hop">
@@ -620,6 +686,11 @@
                         <!-- Dữ liệu tổng hợp sẽ được thêm vào đây -->
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Phân trang cho tab tổng hợp -->
+            <div class="pagination" id="pagination-tong-hop">
+                <!-- Phân trang sẽ được tạo bằng JavaScript -->
             </div>
         </div>
         
@@ -673,6 +744,11 @@
         let units = []; // Mảng lưu trữ danh sách đơn vị
         let currentEditId = null;
         const ADMIN_PASSWORD = "admin123"; // Mật khẩu admin
+        
+        // Biến phân trang
+        const ITEMS_PER_PAGE = 10; // Số hàng mỗi trang
+        let currentPageQuanLy = 1;
+        let currentPageTongHop = 1;
 
         // DOM Elements
         const tabs = document.querySelectorAll('.tab');
@@ -691,6 +767,8 @@
         const alertMessage = document.getElementById('alert-message');
         const donViSelect = document.getElementById('don-vi');
         const locDonViSelect = document.getElementById('loc-don-vi');
+        const paginationQuanLy = document.getElementById('pagination-hoat-dong');
+        const paginationTongHop = document.getElementById('pagination-tong-hop');
 
         // Các phần tử lỗi
         const donViError = document.getElementById('don-vi-error');
@@ -944,22 +1022,33 @@
                     });
                 }
                 
+                // Sắp xếp activities theo ngày mới nhất
+                activities.sort((a, b) => new Date(b.ngay) - new Date(a.ngay));
+                
                 // Cập nhật danh sách hoạt động
                 updateActivitiesList();
             });
         }
 
-        // Cập nhật danh sách hoạt động
+        // Cập nhật danh sách hoạt động với phân trang
         function updateActivitiesList() {
             const danhSachHoatDong = document.getElementById('danh-sach-hoat-dong');
             danhSachHoatDong.innerHTML = '';
             
             if (activities.length === 0) {
                 danhSachHoatDong.innerHTML = '<tr><td colspan="4" class="no-data">Chưa có hoạt động nào được lưu</td></tr>';
+                paginationQuanLy.innerHTML = '';
                 return;
             }
             
-            activities.forEach(activity => {
+            // Tính toán phân trang
+            const totalPages = Math.ceil(activities.length / ITEMS_PER_PAGE);
+            const startIndex = (currentPageQuanLy - 1) * ITEMS_PER_PAGE;
+            const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, activities.length);
+            const currentActivities = activities.slice(startIndex, endIndex);
+            
+            // Hiển thị dữ liệu cho trang hiện tại
+            currentActivities.forEach(activity => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${activity.name}</td>
@@ -972,6 +1061,9 @@
                 `;
                 danhSachHoatDong.appendChild(row);
             });
+            
+            // Tạo phân trang
+            createPagination(paginationQuanLy, currentPageQuanLy, totalPages, 'quanLy');
             
             // Thêm sự kiện cho nút sửa và xóa
             document.querySelectorAll('.btn-sua').forEach(btn => {
@@ -987,6 +1079,78 @@
                     showDeleteModal(id);
                 });
             });
+        }
+
+        // Tạo phân trang
+        function createPagination(paginationElement, currentPage, totalPages, type) {
+            paginationElement.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Nút Previous
+            const prevBtn = document.createElement('button');
+            prevBtn.className = `page-btn ${currentPage === 1 ? 'disabled' : ''}`;
+            prevBtn.innerHTML = '&laquo; Trước';
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    if (type === 'quanLy') {
+                        currentPageQuanLy = currentPage - 1;
+                        updateActivitiesList();
+                    } else {
+                        currentPageTongHop = currentPage - 1;
+                        loadTongHopData();
+                    }
+                }
+            });
+            paginationElement.appendChild(prevBtn);
+            
+            // Các nút trang
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+                pageBtn.textContent = i;
+                pageBtn.addEventListener('click', () => {
+                    if (type === 'quanLy') {
+                        currentPageQuanLy = i;
+                        updateActivitiesList();
+                    } else {
+                        currentPageTongHop = i;
+                        loadTongHopData();
+                    }
+                });
+                paginationElement.appendChild(pageBtn);
+            }
+            
+            // Nút Next
+            const nextBtn = document.createElement('button');
+            nextBtn.className = `page-btn ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextBtn.innerHTML = 'Tiếp &raquo;';
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    if (type === 'quanLy') {
+                        currentPageQuanLy = currentPage + 1;
+                        updateActivitiesList();
+                    } else {
+                        currentPageTongHop = currentPage + 1;
+                        loadTongHopData();
+                    }
+                }
+            });
+            paginationElement.appendChild(nextBtn);
+            
+            // Thông tin phân trang
+            const info = document.createElement('div');
+            info.className = 'pagination-info';
+            info.textContent = `Trang ${currentPage} / ${totalPages} - Tổng: ${activities.length} hoạt động`;
+            paginationElement.appendChild(info);
         }
 
         // Hiển thị modal xác nhận xóa với mật khẩu admin
@@ -1026,13 +1190,14 @@
             huyPasswordBtn.addEventListener('click', cancelDelete);
         }
 
-        // Tải dữ liệu tổng hợp
+        // Tải dữ liệu tổng hợp với phân trang
         function loadTongHopData() {
             const ketQuaTongHop = document.getElementById('ket-qua-tong-hop');
             ketQuaTongHop.innerHTML = '';
             
             if (activities.length === 0) {
                 ketQuaTongHop.innerHTML = '<tr><td colspan="3" class="no-data">Không có dữ liệu để hiển thị</td></tr>';
+                paginationTongHop.innerHTML = '';
                 return;
             }
             
@@ -1046,11 +1211,18 @@
             
             if (filteredData.length === 0) {
                 ketQuaTongHop.innerHTML = '<tr><td colspan="3" class="no-data">Không tìm thấy kết quả phù hợp</td></tr>';
+                paginationTongHop.innerHTML = '';
                 return;
             }
             
+            // Tính toán phân trang
+            const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+            const startIndex = (currentPageTongHop - 1) * ITEMS_PER_PAGE;
+            const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredData.length);
+            const currentData = filteredData.slice(startIndex, endIndex);
+            
             // Hiển thị kết quả
-            filteredData.forEach(activity => {
+            currentData.forEach(activity => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${activity.name}</td>
@@ -1059,6 +1231,15 @@
                 `;
                 ketQuaTongHop.appendChild(row);
             });
+            
+            // Tạo phân trang
+            createPagination(paginationTongHop, currentPageTongHop, totalPages, 'tongHop');
+            
+            // Cập nhật thông tin phân trang cho tab tổng hợp
+            const infoElement = paginationTongHop.querySelector('.pagination-info');
+            if (infoElement) {
+                infoElement.textContent = `Trang ${currentPageTongHop} / ${totalPages} - Tổng: ${filteredData.length} kết quả`;
+            }
         }
 
         // Hàm lọc dữ liệu
@@ -1157,9 +1338,18 @@
         }
 
         // Thêm sự kiện cho các bộ lọc trong tab tổng hợp
-        document.getElementById('loc-don-vi').addEventListener('change', loadTongHopData);
-        document.getElementById('tu-ngay').addEventListener('change', loadTongHopData);
-        document.getElementById('den-ngay').addEventListener('change', loadTongHopData);
+        document.getElementById('loc-don-vi').addEventListener('change', () => {
+            currentPageTongHop = 1;
+            loadTongHopData();
+        });
+        document.getElementById('tu-ngay').addEventListener('change', () => {
+            currentPageTongHop = 1;
+            loadTongHopData();
+        });
+        document.getElementById('den-ngay').addEventListener('change', () => {
+            currentPageTongHop = 1;
+            loadTongHopData();
+        });
 
         // Thêm sự kiện input để xóa cảnh báo khi người dùng bắt đầu nhập
         document.getElementById('don-vi').addEventListener('change', function() {
