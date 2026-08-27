@@ -278,6 +278,46 @@
         .btn-del { background-color: #d32f2f; color: white; }
         .btn-del:hover { background-color: #b71c1c; }
 
+        /* Pagination Controls */
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .page-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            color: var(--text-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .page-btn:hover:not(:disabled) {
+            background-color: var(--primary-light);
+            color: white;
+            border-color: var(--primary-light);
+        }
+        .page-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .page-info {
+            font-size: 13px;
+            color: #666;
+            margin: 0 8px;
+        }
+
         /* Modal styling */
         .modal {
             display: none;
@@ -547,6 +587,8 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Phân trang Sub-tab 1 -->
+            <div id="activityPagination" class="pagination-container"></div>
         </div>
 
         <!-- Sub-tab 2: Tổng hợp và Xuất Excel -->
@@ -588,6 +630,8 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Phân trang Sub-tab 2 -->
+            <div id="summaryActivityPagination" class="pagination-container"></div>
         </div>
     </div>
 </div>
@@ -650,6 +694,14 @@
 
     window.donViMapCache = {};
 
+    // Các biến lưu trữ dữ liệu phân trang cho Tab 4
+    const PAGE_SIZE = 10;
+    let actListCache = [];
+    let curActPage = 1;
+
+    let actSummaryCache = [];
+    let curActSummaryPage = 1;
+
     function formatDateToDDMMYYYY(dateString) {
         if (!dateString) return '';
         const parts = dateString.split('-');
@@ -657,6 +709,53 @@
             return `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
         return dateString;
+    }
+
+    // Hàm tạo giao diện thanh điều hướng phân trang
+    function renderPagination(containerId, totalItems, currentPage, onPageChange) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+        if (totalPages <= 1) return;
+
+        // Nút Trước
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'page-btn';
+        prevBtn.innerHTML = '&laquo; Trước';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => onPageChange(currentPage - 1);
+        container.appendChild(prevBtn);
+
+        // Các nút số trang
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+                pageBtn.innerText = i;
+                pageBtn.onclick = () => onPageChange(i);
+                container.appendChild(pageBtn);
+            } else if ((i === currentPage - 3 && i > 1) || (i === currentPage + 3 && i < totalPages)) {
+                const dots = document.createElement('span');
+                dots.className = 'page-info';
+                dots.innerText = '...';
+                container.appendChild(dots);
+            }
+        }
+
+        // Nút Sau
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'page-btn';
+        nextBtn.innerHTML = 'Sau &raquo;';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.onclick = () => onPageChange(currentPage + 1);
+        container.appendChild(nextBtn);
+
+        // Thông tin số trang
+        const info = document.createElement('span');
+        info.className = 'page-info';
+        info.innerText = `(Tổng ${totalItems} dòng - Trang ${currentPage}/${totalPages})`;
+        container.appendChild(info);
     }
 
     async function initApp() {
@@ -732,15 +831,12 @@
         if (donViSnap.exists()) {
             const rawDonViMap = donViSnap.val();
             
-            // Sắp xếp các khu vực theo thứ tự số học tự nhiên (1, 2, 3, ..., 10, 11, ...)
             const sortedKeys = Object.keys(rawDonViMap).sort((a, b) => {
-                // Trích xuất số từ tên (ví dụ: "Khu vực 2" -> 2, "Khu_vuc_10" -> 10)
                 const numA = parseInt(rawDonViMap[a].replace(/\D/g, '')) || 0;
                 const numB = parseInt(rawDonViMap[b].replace(/\D/g, '')) || 0;
                 return numA - numB;
             });
 
-            // Xây dựng lại donViMap theo thứ tự đã sắp xếp
             sortedKeys.forEach(key => {
                 donViMap[key] = rawDonViMap[key];
             });
@@ -988,38 +1084,61 @@
         }
     }
 
+    // Hàm hiển thị phân trang cho Danh sách hoạt động (Sub-tab 1)
+    window.renderActivityTable = function(page = 1) {
+        curActPage = page;
+        const tbody = document.getElementById('activityTableBody');
+        tbody.innerHTML = '';
+        const donViMap = window.donViMapCache || {};
+
+        if (actListCache.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Chưa có hoạt động nào được ghi nhận.</td></tr>';
+            document.getElementById('activityPagination').innerHTML = '';
+            return;
+        }
+
+        const startIdx = (page - 1) * PAGE_SIZE;
+        const endIdx = startIdx + PAGE_SIZE;
+        const pageData = actListCache.slice(startIdx, endIdx);
+
+        pageData.forEach((item, index) => {
+            const stt = startIdx + index + 1;
+            const unitName = donViMap[item.donVi] || item.donVi;
+            const formattedDate = formatDateToDDMMYYYY(item.ngay);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;">${stt}</td>
+                <td><strong>${unitName}</strong></td>
+                <td style="text-align:center;">${formattedDate}</td>
+                <td style="text-align: justify;">${item.noiDung.replace(/\n/g, '<br>')}</td>
+                <td class="action-btns" style="text-align:center;">
+                    <button class="btn-edit" onclick="editActivity('${item.id}', '${item.donVi}', '${item.ngay}', \`${item.noiDung.replace(/`/g, '\\`')}\`)">Sửa</button>
+                    <button class="btn-del" onclick="promptDeleteActivity('${item.id}')">Xóa</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        renderPagination('activityPagination', actListCache.length, curActPage, window.renderActivityTable);
+    }
+
     window.loadActivityList = async function() {
         const tbody = document.getElementById('activityTableBody');
         tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Đang tải danh sách...</td></tr>';
         
         const snap = await get(ref(db, 'hoat_dong'));
-        tbody.innerHTML = '';
-        const donViMap = window.donViMapCache || {};
+        actListCache = [];
 
-        if (!snap.exists()) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Chưa có hoạt động nào được ghi nhận.</td></tr>';
-            return;
+        if (snap.exists()) {
+            const data = snap.val();
+            for (const id in data) {
+                actListCache.push({ id, ...data[id] });
+            }
+            // Sắp xếp ngày hoạt động mới nhất lên đầu
+            actListCache.sort((a, b) => (b.ngay || '').localeCompare(a.ngay || ''));
         }
 
-        let stt = 1;
-        const data = snap.val();
-        for (const id in data) {
-            const item = data[id];
-            const unitName = donViMap[item.donVi] || item.donVi;
-            const formattedDate = formatDateToDDMMYYYY(item.ngay);
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="text-align:center;">${stt++}</td>
-                <td><strong>${unitName}</strong></td>
-                <td style="text-align:center;">${formattedDate}</td>
-                <td style="text-align: justify;">${item.noiDung.replace(/\n/g, '<br>')}</td>
-                <td class="action-btns" style="text-align:center;">
-                    <button class="btn-edit" onclick="editActivity('${id}', '${item.donVi}', '${item.ngay}', \`${item.noiDung.replace(/`/g, '\\`')}\`)">Sửa</button>
-                    <button class="btn-del" onclick="promptDeleteActivity('${id}')">Xóa</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        }
+        window.renderActivityTable(1);
     }
 
     window.editActivity = function(id, donVi, ngay, noiDung) {
@@ -1039,7 +1158,6 @@
         document.getElementById('activityLegendTitle').innerText = "Thêm mới hoạt động";
     }
 
-    // Mở modal nhập mật khẩu khi bấm Xóa[cite: 1]
     window.promptDeleteActivity = function(id) {
         document.getElementById('pendingDeleteId').value = id;
         document.getElementById('deletePasswordInput').value = '';
@@ -1053,7 +1171,6 @@
         document.getElementById('deletePasswordInput').value = '';
     }
 
-    // Xác nhận mật khẩu và tiến hành xóa nếu đúng[cite: 1]
     window.confirmDeleteActivity = async function() {
         const passwordInput = document.getElementById('deletePasswordInput').value;
         const id = document.getElementById('pendingDeleteId').value;
@@ -1073,6 +1190,40 @@
         }
     }
 
+    // Hàm hiển thị phân trang cho Tổng hợp hoạt động (Sub-tab 2)
+    window.renderSummaryActivityTable = function(page = 1) {
+        curActSummaryPage = page;
+        const tbody = document.getElementById('summaryActivityTableBody');
+        tbody.innerHTML = '';
+        const donViMap = window.donViMapCache || {};
+
+        if (actSummaryCache.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Không tìm thấy hoạt động nào phù hợp với điều kiện lọc.</td></tr>';
+            document.getElementById('summaryActivityPagination').innerHTML = '';
+            return;
+        }
+
+        const startIdx = (page - 1) * PAGE_SIZE;
+        const endIdx = startIdx + PAGE_SIZE;
+        const pageData = actSummaryCache.slice(startIdx, endIdx);
+
+        pageData.forEach((item, index) => {
+            const stt = startIdx + index + 1;
+            const unitName = donViMap[item.donVi] || item.donVi;
+            const formattedDate = formatDateToDDMMYYYY(item.ngay);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;">${stt}</td>
+                <td><strong>${unitName}</strong></td>
+                <td style="text-align:center;">${formattedDate}</td>
+                <td style="text-align: justify;">${item.noiDung.replace(/\n/g, '<br>')}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        renderPagination('summaryActivityPagination', actSummaryCache.length, curActSummaryPage, window.renderSummaryActivityTable);
+    }
+
     window.loadActivitySummary = async function() {
         const tbody = document.getElementById('summaryActivityTableBody');
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Đang lọc dữ liệu...</td></tr>';
@@ -1080,51 +1231,64 @@
         const filterDV = document.getElementById('filterActDonVi').value;
         const tuNgay = document.getElementById('filterTuNgay').value;
         const denNgay = document.getElementById('filterDenNgay').value;
-        const donViMap = window.donViMapCache || {};
 
         const snap = await get(ref(db, 'hoat_dong'));
-        tbody.innerHTML = '';
-        if (!snap.exists()) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Không có dữ liệu.</td></tr>';
-            return;
+        actSummaryCache = [];
+
+        if (snap.exists()) {
+            const data = snap.val();
+            for (const id in data) {
+                const item = data[id];
+                if (filterDV !== 'ALL' && item.donVi !== filterDV) continue;
+                if (tuNgay && item.ngay < tuNgay) continue;
+                if (denNgay && item.ngay > denNgay) continue;
+                actSummaryCache.push({ id, ...item });
+            }
+            actSummaryCache.sort((a, b) => (b.ngay || '').localeCompare(a.ngay || ''));
         }
 
-        let stt = 1;
-        let count = 0;
-        const data = snap.val();
-        for (const id in data) {
-            const item = data[id];
-            
-            if (filterDV !== 'ALL' && item.donVi !== filterDV) continue;
-            if (tuNgay && item.ngay < tuNgay) continue;
-            if (denNgay && item.ngay > denNgay) continue;
-
-            count++;
-            const unitName = donViMap[item.donVi] || item.donVi;
-            const formattedDate = formatDateToDDMMYYYY(item.ngay);
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="text-align:center;">${stt++}</td>
-                <td><strong>${unitName}</strong></td>
-                <td style="text-align:center;">${formattedDate}</td>
-                <td style="text-align: justify;">${item.noiDung.replace(/\n/g, '<br>')}</td>
-            `;
-            tbody.appendChild(tr);
-        }
-
-        if (count === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Không tìm thấy hoạt động nào phù hợp với điều kiện lọc.</td></tr>';
-        }
+        window.renderSummaryActivityTable(1);
     }
 
     window.exportActivityToExcel = function() {
-        const tableHTML = document.getElementById('summaryActivityTable').outerHTML;
+        if (!actSummaryCache || actSummaryCache.length === 0) {
+            alert("Không có dữ liệu để xuất Excel!");
+            return;
+        }
+
+        const donViMap = window.donViMapCache || {};
+        let rowsHtml = '';
+        actSummaryCache.forEach((item, index) => {
+            const unitName = donViMap[item.donVi] || item.donVi;
+            const formattedDate = formatDateToDDMMYYYY(item.ngay);
+            rowsHtml += `
+                <tr>
+                    <td style="text-align:center; border: 1px solid #ddd;">${index + 1}</td>
+                    <td style="border: 1px solid #ddd;">${unitName}</td>
+                    <td style="text-align:center; border: 1px solid #ddd;">${formattedDate}</td>
+                    <td style="border: 1px solid #ddd;">${item.noiDung.replace(/\n/g, '<br>')}</td>
+                </tr>
+            `;
+        });
+
         const excelTemplate = `
             <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
             <head><meta charset="utf-8"><title>Tong hop hoat dong</title></head>
             <body>
                 <h3 style="text-align:center; color:#1b5e20;">TỔNG HỢP HOẠT ĐỘNG BAN CTMT</h3>
-                ${tableHTML}
+                <table border="1" style="border-collapse: collapse; width: 100%;">
+                    <thead>
+                        <tr style="background-color: #1b5e20; color: white;">
+                            <th style="width: 5%;">STT</th>
+                            <th style="width: 25%;">Đơn vị</th>
+                            <th style="width: 15%;">Ngày hoạt động</th>
+                            <th style="width: 55%;">Nội dung hoạt động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
             </body>
             </html>
         `;
