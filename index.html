@@ -110,7 +110,7 @@
             gap: 5px;
         }
 
-        select, textarea, input[type="text"], input[type="date"], input[type="password"] {
+        select, textarea, input[type="text"], input[type="date"], input[type="password"], input[type="file"] {
             width: 100%;
             padding: 10px;
             border: 1px solid var(--border-color);
@@ -142,6 +142,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            text-decoration: none;
         }
 
         .btn-add {
@@ -178,6 +179,16 @@
         }
         .btn-export:hover { background-color: #01579b; }
 
+        .btn-download-file {
+            background-color: #0288d1;
+            color: white;
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+        .btn-download-file:hover { background-color: #01579b; }
+
         .section-title {
             font-weight: bold;
             color: var(--primary-color);
@@ -189,6 +200,27 @@
         .sub-section {
             margin-left: 15px;
             margin-bottom: 12px;
+        }
+
+        /* Upload file box */
+        .file-upload-box {
+            background: #eef7ee;
+            border: 2px dashed #81c784;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .file-info-badge {
+            margin-top: 10px;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #c8e6c9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         /* Tổng hợp Tab 2 */
@@ -227,9 +259,12 @@
             border-radius: 12px;
             font-size: 12px;
             color: white;
+            font-weight: 500;
         }
         .badge-success { background-color: #2e7d32; }
         .badge-danger { background-color: #d32f2f; }
+        .badge-info { background-color: #0288d1; }
+        .badge-combo { background-color: #00796b; }
 
         .unit-list {
             list-style: none;
@@ -243,6 +278,7 @@
             justify-content: space-between;
             align-items: center;
             font-size: 14px;
+            gap: 8px;
         }
         .unit-list li:last-child { border-bottom: none; }
 
@@ -416,7 +452,7 @@
                     <label for="donVi">Tên đơn vị (Khu vực)</label>
                     <div class="select-group">
                         <select id="donVi" onchange="loadReportData()">
-                            <option value="ALL">-- Tất cả các khu vực --</option>
+                            <option value="ALL">-- Chọn khu vực --</option>
                         </select>
                         <button class="btn btn-add" onclick="openModal('donVi')" title="Thêm khu vực">+</button>
                     </div>
@@ -444,8 +480,24 @@
             </div>
         </fieldset>
 
+        <!-- KHỐI ĐÍNH KÈM TỆP BÁO CÁO -->
+        <div class="file-upload-box">
+            <label style="font-weight: bold; color: var(--primary-color);">📎 Đính kèm tệp Báo cáo (Word, Excel, PDF, Ảnh... - Tối đa 5MB):</label>
+            <input type="file" id="reportFileInput" onchange="handleFileSelect(event)" style="margin-top: 6px; background: #fff;">
+            
+            <div id="fileInfoDisplay" class="file-info-badge" style="display: none;">
+                <div style="font-size: 13px;">
+                    📄 File hiện tại: <strong id="attachedFileName" style="color: var(--primary-color);"></strong>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-download-file" onclick="downloadCurrentFile()">📥 Tải về</button>
+                    <button type="button" class="btn btn-del" onclick="removeAttachedFile()" style="padding: 4px 8px; font-size: 12px; margin-left: 5px;">🗑️ Xóa file</button>
+                </div>
+            </div>
+        </div>
+
         <fieldset>
-            <legend>Nội dung báo cáo</legend>
+            <legend>Nội dung báo cáo trực tiếp (Không bắt buộc nếu đã gửi file đính kèm)</legend>
             <div class="section-title">I. Tình hình Nhân dân và dư luận quần chúng</div>
             <textarea id="i_duLuan" placeholder="Nhập tình hình nhân dân và dư luận..."></textarea>
 
@@ -479,7 +531,7 @@
             <textarea id="iii_nhiemVu" placeholder="Nhập nhiệm vụ trọng tâm..."></textarea>
         </fieldset>
 
-        <button class="btn btn-primary" onclick="saveReportData()">💾 Lưu Báo Cáo</button>
+        <button class="btn btn-primary" onclick="saveReportData()">💾 Lưu Báo Cáo & File Đính Kèm</button>
     </div>
 
     <!-- TAB 2: TỔNG HỢP THEO THÁNG VÀ NĂM -->
@@ -693,6 +745,11 @@
     const db = getDatabase(app, firebaseConfig.databaseURL);
 
     window.donViMapCache = {};
+    window.reportsCache = {}; // Lưu trữ tạm thời file đính kèm để tải nhanh
+
+    // Lưu trữ file Base64 hiện tại trên form Tab 1
+    let currentFileBase64 = null;
+    let currentFileName = null;
 
     // Các biến lưu trữ dữ liệu phân trang cho Tab 4
     const PAGE_SIZE = 10;
@@ -711,6 +768,76 @@
         return dateString;
     }
 
+    // --- XỬ LÝ FILE ĐÍNH KÈM ---
+    window.handleFileSelect = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Giới hạn 5MB
+        if (file.size > 5 * 1024 * 1024) {
+            alert("⚠️ Dung lượng file quá lớn (> 5MB). Vui lòng chọn file nhẹ hơn 5MB!");
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            currentFileBase64 = evt.target.result;
+            currentFileName = file.name;
+            window.displayAttachedFileInfo(file.name);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    window.displayAttachedFileInfo = function(fileName) {
+        const fileDisplay = document.getElementById('fileInfoDisplay');
+        const attachedName = document.getElementById('attachedFileName');
+        if (fileName) {
+            attachedName.innerText = fileName;
+            fileDisplay.style.display = 'flex';
+        } else {
+            fileDisplay.style.display = 'none';
+            attachedName.innerText = '';
+        }
+    };
+
+    window.removeAttachedFile = function() {
+        currentFileBase64 = null;
+        currentFileName = null;
+        document.getElementById('reportFileInput').value = '';
+        window.displayAttachedFileInfo(null);
+    };
+
+    window.downloadCurrentFile = function() {
+        if (!currentFileBase64) {
+            alert("Không tìm thấy file để tải về!");
+            return;
+        }
+        window.downloadBase64File(currentFileBase64, currentFileName);
+    };
+
+    window.downloadBase64File = function(base64Data, fileName) {
+        if (!base64Data) {
+            alert("File không tồn tại hoặc đã bị xóa.");
+            return;
+        }
+        const a = document.createElement('a');
+        a.href = base64Data;
+        a.download = fileName || 'Bao_cao_dinh_kem';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    window.downloadFileFromDashboard = function(reportKey) {
+        const report = window.reportsCache[reportKey];
+        if (report && report.fileData) {
+            window.downloadBase64File(report.fileData, report.fileName);
+        } else {
+            alert("Không tìm thấy file đính kèm!");
+        }
+    };
+
     // Hàm tạo giao diện thanh điều hướng phân trang
     function renderPagination(containerId, totalItems, currentPage, onPageChange) {
         const container = document.getElementById(containerId);
@@ -719,7 +846,6 @@
         const totalPages = Math.ceil(totalItems / PAGE_SIZE);
         if (totalPages <= 1) return;
 
-        // Nút Trước
         const prevBtn = document.createElement('button');
         prevBtn.className = 'page-btn';
         prevBtn.innerHTML = '&laquo; Trước';
@@ -727,7 +853,6 @@
         prevBtn.onclick = () => onPageChange(currentPage - 1);
         container.appendChild(prevBtn);
 
-        // Các nút số trang
         for (let i = 1; i <= totalPages; i++) {
             if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
                 const pageBtn = document.createElement('button');
@@ -743,7 +868,6 @@
             }
         }
 
-        // Nút Sau
         const nextBtn = document.createElement('button');
         nextBtn.className = 'page-btn';
         nextBtn.innerHTML = 'Sau &raquo;';
@@ -751,7 +875,6 @@
         nextBtn.onclick = () => onPageChange(currentPage + 1);
         container.appendChild(nextBtn);
 
-        // Thông tin số trang
         const info = document.createElement('span');
         info.className = 'page-info';
         info.innerText = `(Tổng ${totalItems} dòng - Trang ${currentPage}/${totalPages})`;
@@ -822,7 +945,7 @@
         const curActDV = actDonViSelect.value;
         const curFilterActDV = filterActDonViSelect.value;
 
-        donViSelect.innerHTML = '<option value="ALL">-- Tất cả các khu vực --</option>';
+        donViSelect.innerHTML = '<option value="">-- Chọn khu vực --</option>';
         donViTHSelect.innerHTML = '<option value="ALL">-- Tất cả các khu vực --</option>';
         actDonViSelect.innerHTML = '<option value="">-- Chọn khu vực --</option>';
         filterActDonViSelect.innerHTML = '<option value="ALL">-- Tất cả các khu vực --</option>';
@@ -910,6 +1033,15 @@
             document.getElementById('ii_5').value = data.ii_5 || '';
             document.getElementById('ii_6').value = data.ii_6 || '';
             document.getElementById('iii_nhiemVu').value = data.iii_nhiemVu || '';
+
+            // Nạp thông tin file nếu có
+            if (data.fileData && data.fileName) {
+                currentFileBase64 = data.fileData;
+                currentFileName = data.fileName;
+                window.displayAttachedFileInfo(data.fileName);
+            } else {
+                window.removeAttachedFile();
+            }
         } else {
             window.clearFormInputs();
         }
@@ -919,6 +1051,7 @@
         ['i_duLuan', 'ii_1', 'ii_2', 'ii_3', 'ii_4', 'ii_5', 'ii_6', 'iii_nhiemVu'].forEach(id => {
             document.getElementById(id).value = '';
         });
+        window.removeAttachedFile();
     }
 
     window.saveReportData = async function() {
@@ -932,16 +1065,28 @@
             return;
         }
 
+        const i_duLuan = document.getElementById('i_duLuan').value.trim();
+        const ii_1 = document.getElementById('ii_1').value.trim();
+        const ii_2 = document.getElementById('ii_2').value.trim();
+        const ii_3 = document.getElementById('ii_3').value.trim();
+        const ii_4 = document.getElementById('ii_4').value.trim();
+        const ii_5 = document.getElementById('ii_5').value.trim();
+        const ii_6 = document.getElementById('ii_6').value.trim();
+        const iii_nhiemVu = document.getElementById('iii_nhiemVu').value.trim();
+
+        const hasDirectContent = !!(i_duLuan || ii_1 || ii_2 || ii_3 || ii_4 || ii_5 || ii_6 || iii_nhiemVu);
+        const hasFileAttached = !!currentFileBase64;
+
+        if (!hasDirectContent && !hasFileAttached) {
+            alert("Vui lòng nhập nội dung báo cáo hoặc đính kèm tệp báo cáo!");
+            return;
+        }
+
         const reportData = {
             donVi, thang, nam,
-            i_duLuan: document.getElementById('i_duLuan').value,
-            ii_1: document.getElementById('ii_1').value,
-            ii_2: document.getElementById('ii_2').value,
-            ii_3: document.getElementById('ii_3').value,
-            ii_4: document.getElementById('ii_4').value,
-            ii_5: document.getElementById('ii_5').value,
-            ii_6: document.getElementById('ii_6').value,
-            iii_nhiemVu: document.getElementById('iii_nhiemVu').value,
+            i_duLuan, ii_1, ii_2, ii_3, ii_4, ii_5, ii_6, iii_nhiemVu,
+            fileData: currentFileBase64 || null,
+            fileName: currentFileName || null,
             updatedAt: new Date().toISOString()
         };
 
@@ -949,7 +1094,7 @@
             await set(ref(db, `bao_cao/${donVi}_${nam}_${thang}`), reportData);
             alert("✅ Đã lưu báo cáo thành công!");
         } catch (error) {
-            alert("❌ Lưu thất bại.");
+            alert("❌ Lưu thất bại: " + error.message);
         }
     }
 
@@ -981,11 +1126,24 @@
             if (report.donVi === donViFilter && report.thang === thangTH && report.nam === namTH) {
                 countMatch++;
                 const unitName = donViMap[report.donVi] || report.donVi;
+                window.reportsCache[key] = report;
+
+                let fileBoxHtml = '';
+                if (report.fileData && report.fileName) {
+                    fileBoxHtml = `
+                        <div style="margin-top: 10px; padding: 10px; background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>📎 <strong>File đính kèm:</strong> ${report.fileName}</span>
+                            <button class="btn btn-download-file" onclick="downloadFileFromDashboard('${key}')">📥 Tải file về</button>
+                        </div>
+                    `;
+                }
+
                 const card = document.createElement('div');
                 card.className = 'summary-card';
                 card.innerHTML = `
-                    <h4 style="margin-bottom: 15px; font-size: 15px; color: var(--primary-color);">📍 Đơn vị: ${unitName} (Tháng ${thangTH}/${namTH})</h4>
-                    <p style="font-weight: bold;">I. Tình hình Nhân dân và dư luận quần chúng:</p>
+                    <h4 style="margin-bottom: 10px; font-size: 15px; color: var(--primary-color);">📍 Đơn vị: ${unitName} (Tháng ${thangTH}/${namTH})</h4>
+                    ${fileBoxHtml}
+                    <p style="font-weight: bold; margin-top: 10px;">I. Tình hình Nhân dân và dư luận quần chúng:</p>
                     <p style="text-align: justify;">${(report.i_duLuan || '<i>Chưa cập nhật</i>').replace(/\n/g, '<br>')}</p>
                     <p style="font-weight: bold; margin-top: 10px;">II. Kết quả thực hiện các chương trình công tác:</p>
                     <div style="margin-left: 15px;">
@@ -1005,6 +1163,7 @@
         if (countMatch === 0) container.innerHTML = `<p style="text-align:center; color:#777;">Không tìm thấy dữ liệu báo cáo.</p>`;
     }
 
+    // --- DASHBOARD: KIỂM TRA BÁO CÁO TRỰC TIẾP HOẶC FILE ---
     window.loadDashboardData = async function() {
         const container = document.getElementById('dashboardResultContainer');
         container.innerHTML = '<div style="text-align:center; padding: 20px;">Đang tính toán tiến độ...</div>';
@@ -1013,12 +1172,29 @@
         const donViMap = window.donViMapCache || {};
 
         const reportSnap = await get(ref(db, 'bao_cao'));
-        let submittedUnits = new Set();
+        window.reportsCache = {};
+        let submittedUnits = {};
+
         if (reportSnap.exists()) {
             const allReports = reportSnap.val();
             for (const key in allReports) {
-                if (allReports[key].thang === thangDash && allReports[key].nam === namDash) {
-                    submittedUnits.add(allReports[key].donVi);
+                const rep = allReports[key];
+                if (rep.thang === thangDash && rep.nam === namDash) {
+                    // Kiểm tra có nội dung trực tiếp không
+                    const hasDirect = !!(rep.i_duLuan || rep.ii_1 || rep.ii_2 || rep.ii_3 || rep.ii_4 || rep.ii_5 || rep.ii_6 || rep.iii_nhiemVu);
+                    // Kiểm tra có file đính kèm không
+                    const hasFile = !!(rep.fileData && rep.fileName);
+
+                    if (hasDirect || hasFile) {
+                        submittedUnits[rep.donVi] = {
+                            key: key,
+                            hasDirect: hasDirect,
+                            hasFile: hasFile,
+                            fileName: rep.fileName || '',
+                            fileData: rep.fileData || null
+                        };
+                        window.reportsCache[key] = rep;
+                    }
                 }
             }
         }
@@ -1028,9 +1204,37 @@
 
         for (const key in donViMap) {
             const unitName = donViMap[key];
-            if (submittedUnits.has(key)) {
+            const subInfo = submittedUnits[key];
+
+            if (subInfo) {
                 submittedCount++;
-                submittedHTML += `<li><span>✅ <strong>${unitName}</strong></span><button class="btn" style="background:#0288d1; color:white; font-size:12px; padding:3px 8px;" onclick="viewUnitReport('${key}', '${thangDash}', '${namDash}')">Xem</button></li>`;
+                let statusBadge = '';
+                let fileBtn = '';
+
+                if (subInfo.hasDirect && subInfo.hasFile) {
+                    statusBadge = '<span class="badge badge-combo">📝 Trực tiếp + 📎 File</span>';
+                } else if (subInfo.hasFile) {
+                    statusBadge = '<span class="badge badge-info">📎 File đính kèm</span>';
+                } else {
+                    statusBadge = '<span class="badge badge-success">📝 Báo cáo trực tiếp</span>';
+                }
+
+                if (subInfo.hasFile) {
+                    fileBtn = `<button class="btn btn-download-file" onclick="downloadFileFromDashboard('${subInfo.key}')" title="Tải file đính kèm">📥 Tải file</button>`;
+                }
+
+                submittedHTML += `
+                    <li>
+                        <div>
+                            <span>✅ <strong>${unitName}</strong></span>
+                            <div style="margin-top: 4px;">${statusBadge}</div>
+                        </div>
+                        <div style="display: flex; align-items: center;">
+                            ${fileBtn}
+                            <button class="btn" style="background:#2e7d32; color:white; font-size:12px; padding:4px 10px; margin-left:5px;" onclick="viewUnitReport('${key}', '${thangDash}', '${namDash}')">Xem</button>
+                        </div>
+                    </li>
+                `;
             } else {
                 unsubmittedHTML += `<li><span>❌ <strong>${unitName}</strong></span><span style="color:#d32f2f; font-size:12px; font-weight:bold;">Chưa nộp</span></li>`;
             }
@@ -1041,8 +1245,8 @@
                 Tiến độ tháng ${thangDash}/${namDash}: Đã nộp ${submittedCount} / ${totalUnits} khu vực
             </div>
             <div class="dash-grid">
-                <div class="dash-box success"><h3>Đã có báo cáo <span class="badge badge-success">${submittedCount}</span></h3><ul class="unit-list">${submittedHTML || '<li>Chưa có</li>'}</ul></div>
-                <div class="dash-box warning"><h3>Chưa có báo cáo <span class="badge badge-danger">${totalUnits - submittedCount}</span></h3><ul class="unit-list">${unsubmittedHTML || '<li>Đã nộp đủ</li>'}</ul></div>
+                <div class="dash-box success"><h3>Đã có báo cáo <span class="badge badge-success">${submittedCount}</span></h3><ul class="unit-list">${submittedHTML || '<li>Chưa có khu vực nào nộp</li>'}</ul></div>
+                <div class="dash-box warning"><h3>Chưa có báo cáo <span class="badge badge-danger">${totalUnits - submittedCount}</span></h3><ul class="unit-list">${unsubmittedHTML || '<li>Đã nộp đầy đủ</li>'}</ul></div>
             </div>
         `;
     }
@@ -1053,6 +1257,47 @@
         document.getElementById('nam').value = nam;
         window.switchTab(1);
         window.loadReportData();
+    }
+
+    // --- XUẤT BÁO CÁO RA FILE WORD (.DOC) ---
+    window.exportSummaryToWord = function() {
+        const container = document.getElementById('summaryResultContainer');
+        if (!container.innerText.trim() || container.innerText.includes('Vui lòng chọn') || container.innerText.includes('Không tìm thấy')) {
+            alert("Vui lòng chọn khu vực và đảm bảo đã có dữ liệu báo cáo để xuất!");
+            return;
+        }
+
+        const donViText = document.getElementById('donViTongHop').options[document.getElementById('donViTongHop').selectedIndex].text;
+        const thang = document.getElementById('thangTongHop').value;
+        const nam = document.getElementById('namTongHop').value;
+
+        const header = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset='utf-8'><title>Báo cáo Mặt trận</title>
+            <style>
+                body { font-family: 'Times New Roman', serif; font-size: 14pt; line-height: 1.5; }
+                h3 { text-align: center; font-size: 16pt; margin-bottom: 5px; }
+                h4 { text-align: center; font-size: 14pt; font-weight: normal; margin-top: 0; }
+                p { text-align: justify; margin: 6px 0; }
+            </style>
+            </head><body>
+            <h3>BÁO CÁO CÔNG TÁC MẶT TRẬN THÁNG ${thang}/${nam}</h3>
+            <h4>Đơn vị: ${donViText}</h4>
+            <hr/>
+        `;
+        const content = container.innerHTML;
+        const footer = "</body></html>";
+
+        const fullDoc = header + content + footer;
+        const blob = new Blob(['\ufeff' + fullDoc], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Bao_cao_${donViText}_Thang_${thang}_${nam}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     // --- CÁC HÀM XỬ LÝ CHO TAB 4: HOẠT ĐỘNG BAN CTMT ---
@@ -1084,7 +1329,6 @@
         }
     }
 
-    // Hàm hiển thị phân trang cho Danh sách hoạt động (Sub-tab 1)
     window.renderActivityTable = function(page = 1) {
         curActPage = page;
         const tbody = document.getElementById('activityTableBody');
@@ -1134,7 +1378,6 @@
             for (const id in data) {
                 actListCache.push({ id, ...data[id] });
             }
-            // Sắp xếp ngày hoạt động mới nhất lên đầu
             actListCache.sort((a, b) => (b.ngay || '').localeCompare(a.ngay || ''));
         }
 
@@ -1190,7 +1433,6 @@
         }
     }
 
-    // Hàm hiển thị phân trang cho Tổng hợp hoạt động (Sub-tab 2)
     window.renderSummaryActivityTable = function(page = 1) {
         curActSummaryPage = page;
         const tbody = document.getElementById('summaryActivityTableBody');
