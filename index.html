@@ -526,11 +526,13 @@
                         <button class="btn btn-add" onclick="openModal('donVi')" title="Thêm khu vực">+</button>
                     </div>
                     <button class="btn btn-manage" onclick="openModal('donVi')">Quản lý danh sách</button>
+                    <!-- THÊM DÒNG CHÚ Ý THỜI HẠN DƯỚI NÚT QUẢN LÝ DANH SÁCH -->
+                    <div id="deadlineNotice" style="margin-top: 8px; font-size: 13px; font-weight: 600;"></div>
                 </div>
 
                 <div class="col">
                     <label for="thang">Tháng</label>
-                    <select id="thang" onchange="loadReportData()">
+                    <select id="thang" onchange="checkDeadlineAndReload()">
                         <option value="1">Tháng 1</option><option value="2">Tháng 2</option><option value="3">Tháng 3</option>
                         <option value="4">Tháng 4</option><option value="5">Tháng 5</option><option value="6">Tháng 6</option>
                         <option value="7">Tháng 7</option><option value="8" selected>Tháng 8</option><option value="9">Tháng 9</option>
@@ -541,7 +543,7 @@
                 <div class="col">
                     <label for="nam">Năm</label>
                     <div class="select-group">
-                        <select id="nam" onchange="loadReportData()"></select>
+                        <select id="nam" onchange="checkDeadlineAndReload()"></select>
                         <button class="btn btn-add" onclick="openModal('nam')" title="Thêm năm">+</button>
                     </div>
                     <button class="btn btn-manage" onclick="openModal('nam')">Quản lý danh sách</button>
@@ -550,11 +552,11 @@
         </fieldset>
 
         <!-- KHỐI ĐÍNH KÈM TỆP BÁO CÁO -->
-        <div class="file-upload-box">
+        <div class="file-upload-box" id="fileUploadBoxContainer">
             <label style="font-weight: bold; color: var(--primary-color);">📎 Đính kèm tệp Báo cáo (Word, Excel, PDF, Ảnh... - Hỗ trợ tới 50MB): Nhớ bấm Lưu khi có file đính kèm</label>
 
            <!-- NÚT LƯU NGANG HÀNG -->
-                <button type="button" class="btn btn-save-report" onclick="saveReportData()" style="background: var(--primary-color); color: white; padding: 7px 16px; font-size: 13px; white-space: nowrap; flex-shrink: 0;">
+                <button type="button" class="btn btn-save-report" id="btnSaveReportTop" onclick="saveReportData()" style="background: var(--primary-color); color: white; padding: 7px 16px; font-size: 13px; white-space: nowrap; flex-shrink: 0;">
                     💾 Lưu Báo Cáo & File
                 </button>
 
@@ -566,12 +568,12 @@
                 </div>
                 <div>
                     <a id="downloadFileLink" class="btn btn-download-file" target="_blank" href="#">📥 Tải / Xem tệp</a>
-                    <button type="button" class="btn btn-del" onclick="removeAttachedFile()" style="padding: 4px 8px; font-size: 12px; margin-left: 5px;">🗑️ Xóa file</button>
+                    <button type="button" id="btnRemoveFile" class="btn btn-del" onclick="removeAttachedFile()" style="padding: 4px 8px; font-size: 12px; margin-left: 5px;">🗑️ Xóa file</button>
                 </div>
             </div>
         </div>
 
-        <fieldset>
+        <fieldset id="reportContentFieldSet">
             <legend>Nội dung báo cáo trực tiếp (Không bắt buộc nếu đã gửi file đính kèm)</legend>
             <div class="section-title">I. Tình hình Nhân dân và dư luận quần chúng</div>
             <textarea id="i_duLuan" placeholder="Nhập tình hình nhân dân và dư luận..."></textarea>
@@ -874,6 +876,79 @@
         };
     }
 
+    // ================= XỬ LÝ KIỂM TRA THỜI HẠN NỘP BÁO CÁO =================
+    window.checkDeadlineAndReload = function() {
+        const thang = parseInt(document.getElementById('thang').value);
+        const namSelect = document.getElementById('nam');
+        const nam = namSelect.options[namSelect.selectedIndex] ? parseInt(namSelect.options[namSelect.selectedIndex].text) : new Date().getFullYear();
+
+        const deadlineNotice = document.getElementById('deadlineNotice');
+        const reportFileInput = document.getElementById('reportFileInput');
+        const btnRemoveFile = document.getElementById('btnRemoveFile');
+        const reportContentFieldSet = document.getElementById('reportContentFieldSet');
+        const btnSaveReportTop = document.getElementById('btnSaveReportTop');
+        const btnSaveReport = document.getElementById('btnSaveReport');
+
+        // Hạn chót: Đến hết 23:59:00 ngày 09 của tháng chọn / năm chọn
+        const deadline = new Date(nam, thang - 1, 9, 23, 59, 0);
+        const now = new Date();
+
+//        const formattedDeadlineStr = `Thời hạn nộp, gởi báo cáo đến hết 23:59:00 ngày 09/${thang < 10 ? '0' + thang : thang}/${nam}`;
+const formattedDeadlineStr = '<span style="white-space: nowrap;">Thời hạn nộp, gởi báo cáo đến hết 23:59:00 ngày 09/' + (thang < 10 ? '0' + thang : thang) + '/' + nam + '</span>';
+
+
+        if (now <= deadline) {
+            // Còn hạn (Màu xanh)
+ //           deadlineNotice.innerText = formattedDeadlineStr;
+ deadlineNotice.innerHTML = formattedDeadlineStr;
+            deadlineNotice.style.color = '#2e7d32';
+
+            // Mở khóa các thành phần
+            reportFileInput.disabled = false;
+            if (btnRemoveFile) btnRemoveFile.disabled = false;
+            reportContentFieldSet.disabled = false;
+            
+            // Mở khóa các textarea bên trong fieldset nội dung trực tiếp
+            const textareas = reportContentFieldSet.querySelectorAll('textarea');
+            textareas.forEach(t => t.disabled = false);
+
+            btnSaveReportTop.disabled = false;
+            btnSaveReportTop.style.opacity = '1';
+            btnSaveReportTop.style.cursor = 'pointer';
+            btnSaveReportTop.innerText = "💾 Lưu Báo Cáo & File";
+
+            btnSaveReport.disabled = false;
+            btnSaveReport.style.opacity = '1';
+            btnSaveReport.style.cursor = 'pointer';
+            btnSaveReport.innerText = "💾 Lưu Báo Cáo & File Đính Kèm";
+        } else {
+            // Hết hạn (Màu đỏ)
+            deadlineNotice.innerText = "Đã hết thời gian gởi báo cáo, liên hệ Quản trị để hướng dẫn";
+            deadlineNotice.style.color = '#d32f2f';
+
+            // Khóa chỗ chọn tệp và khóa "Nội dung báo cáo trực tiếp"
+            reportFileInput.disabled = true;
+            if (btnRemoveFile) btnRemoveFile.disabled = true;
+            reportContentFieldSet.disabled = true;
+
+            const textareas = reportContentFieldSet.querySelectorAll('textarea');
+            textareas.forEach(t => t.disabled = true);
+
+            // Khóa 2 nút "Lưu báo cáo" và hiển thị "hết hạn báo cáo"
+            btnSaveReportTop.disabled = true;
+            btnSaveReportTop.style.opacity = '0.6';
+            btnSaveReportTop.style.cursor = 'not-allowed';
+            btnSaveReportTop.innerText = "hết hạn báo cáo";
+
+            btnSaveReport.disabled = true;
+            btnSaveReport.style.opacity = '0.6';
+            btnSaveReport.style.cursor = 'not-allowed';
+            btnSaveReport.innerText = "hết hạn báo cáo";
+        }
+
+        window.loadReportData();
+    };
+
     // ================= XỬ LÝ FILE BÁO CÁO TAB 1 =================
     window.handleReportFileSelect = function(e) {
         const file = e.target.files[0];
@@ -975,7 +1050,7 @@
         }
 
         window.updateNhiemVuLabel();
-        window.loadReportData();
+        window.checkDeadlineAndReload();
     };
 
     window.switchTab = function(tabNumber) {
@@ -1084,9 +1159,13 @@
             return;
         }
 
-        const btn = document.getElementById('btnSaveReport');
-        btn.innerText = "⏳ Đang tải lên & lưu...";
-        btn.disabled = true;
+        const btnTop = document.getElementById('btnSaveReportTop');
+        const btnBot = document.getElementById('btnSaveReport');
+        
+        btnTop.innerText = "⏳ Đang tải lên...";
+        btnTop.disabled = true;
+        btnBot.innerText = "⏳ Đang tải lên & lưu...";
+        btnBot.disabled = true;
 
         try {
             let fileUrl = currentReportFileUrl;
@@ -1124,8 +1203,7 @@
         } catch (error) {
             alert("❌ Lưu thất bại: " + error.message);
         } finally {
-            btn.innerText = "💾 Lưu Báo Cáo & File Đính Kèm";
-            btn.disabled = false;
+            window.checkDeadlineAndReload(); // Khôi phục lại trạng thái nút và giao diện theo thời hạn
         }
     };
 
@@ -1318,7 +1396,7 @@
         document.getElementById('thang').value = thang;
         document.getElementById('nam').value = nam;
         window.switchTab(1);
-        window.loadReportData();
+        window.checkDeadlineAndReload();
     };
 
     // ================= TAB 4: HOẠT ĐỘNG BAN CTMT =================
@@ -1779,9 +1857,51 @@
         if (event.target == document.getElementById('passwordModal')) window.closePasswordModal();
     };
 
+document.addEventListener("DOMContentLoaded", function() {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // Tháng trong JS tính từ 0 đến 11 nên phải +1
+    const currentYear = now.getFullYear();
+
+    // Gán giá trị tháng hiện tại vào thẻ select có id là 'thang'
+    const thangSelect = document.getElementById('thang');
+    if (thangSelect) {
+        thangSelect.value = currentMonth;
+    }
+
+    // Gán giá trị năm hiện tại vào thẻ select có id là 'nam'
+    const namSelect = document.getElementById('nam');
+    if (namSelect) {
+        namSelect.value = currentYear;
+    }
+
+    // Gọi lại hàm kiểm tra hạn chót nếu có
+    if (typeof window.checkDeadlineAndReload === 'function') {
+        window.checkDeadlineAndReload();
+    }
+});
+
     // Khởi chạy ứng dụng
     initApp();
 </script>
-
+<!-- CỬA SỔ THÔNG BÁO KHI MỞ TRANG -->
+<div id="welcome-modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background-color: #fff; width: 90%; max-width: 550px; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); position: relative; border-left: 6px solid var(--primary-color);">
+        <h3 style="margin-top: 0; color: var(--primary-color); font-size: 18px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            📢 THÔNG BÁO QUAN TRỌNG
+        </h3>
+        <ul style="margin: 0 0 20px 0; padding-left: 20px; font-size: 15px; color: #333; line-height: 1.6;">
+            <li>+ Nếu Báo cáo tháng 10 thì: <strong>Kết quả thực hiện công tác tháng 9 và phương hướng tháng 10</strong></li>
+            <li>+ Nếu Báo cáo tháng 11 thì: <strong>Kết quả thực hiện công tác tháng 10 và phương hướng tháng 11</strong></li>
+            <li>Thời hạn gởi báo cáo: <strong style="color: #d9534f;">23:59:00 ngày 09 của tháng báo cáo</strong></li>
+            <li>Nếu qua ngày này thì sẽ không gởi được báo cáo, Ban Thường trực MTTQ Việt Nam phường sẽ đánh giá kết quả thi đua cuối năm dựa trên thời hạn khu vực gởi báo cáo.</li>
+            <li><strong style="color: #d9534f;">Rất mong các Khu vực gởi Báo cáo và các Hoạt động khu vực qua Hệ thống này. Trân thành Cám ơn các đồng chí.</strong></li>
+        </ul>
+        <div style="text-align: right;">
+            <button onclick="document.getElementById('welcome-modal').style.display='none';" style="background-color: var(--primary-color); color: #fff; border: none; padding: 8px 20px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer;">
+                Đã hiểu và Vào chương trình
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
