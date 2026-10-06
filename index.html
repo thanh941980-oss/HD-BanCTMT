@@ -574,7 +574,7 @@
         </div>
 
         <fieldset id="reportContentFieldSet">
-            <legend>Nội dung báo cáo trực tiếp (Không bắt buộc nếu đã gửi file đính kèm)</legend>
+            <legend id="legendResultTitle">Nội dung báo cáo trực tiếp (Không bắt buộc nếu đã gửi file đính kèm)</legend>
             <div class="section-title">I. Tình hình Nhân dân và dư luận quần chúng</div>
             <textarea id="i_duLuan" placeholder="Nhập tình hình nhân dân và dư luận..."></textarea>
 
@@ -1077,14 +1077,34 @@ const formattedDeadlineStr = '<span style="white-space: nowrap;">Thời hạn n�
     };
 
     window.updateNhiemVuLabel = function() {
-        const thangSelect = parseInt(document.getElementById('thang').value);
-        const namSelect = document.getElementById('nam');
-        let targetMonth = thangSelect + 1;
-        let targetYear = namSelect.options[namSelect.selectedIndex] ? parseInt(namSelect.options[namSelect.selectedIndex].text) : new Date().getFullYear();
+    const thangSelect = parseInt(document.getElementById('thang').value);
+    const namSelect = document.getElementById('nam');
+    let targetYear = namSelect.options[namSelect.selectedIndex] ? parseInt(namSelect.options[namSelect.selectedIndex].text) : new Date().getFullYear();
 
-        if (targetMonth > 12) { targetMonth = 1; targetYear += 1; }
-        document.getElementById('labelNhiemVu').innerText = `III. Nhiệm vụ trọng tâm công tác Mặt trận tháng ${targetMonth}/${targetYear}`;
-    };
+    // 1. Logic cho Nhiệm vụ trọng tâm (Tháng hiện tại) - MÀU ĐỎ
+    let nextMonth = thangSelect;
+    let nextYear = targetYear;
+    if (nextMonth > 12) { nextMonth = 1; nextYear += 1; }
+
+    const labelNhiemVu = document.getElementById('labelNhiemVu');
+    if (labelNhiemVu) {
+        labelNhiemVu.innerHTML = `<span style="color: #d32f2f; font-weight: bold;">III. Nhiệm vụ trọng tâm công tác Mặt trận tháng ${nextMonth}/${nextYear}</span>`;
+    }
+
+    // 2. Logic cho Kết quả thực hiện (Tháng chọn - 1) - MÀU ĐỎ
+    let prevMonth = thangSelect - 1;
+    let prevYear = targetYear;
+
+    if (prevMonth === 0) {
+        prevMonth = 12;
+        prevYear = targetYear - 1;
+    }
+
+    const legendTitle = document.getElementById('legendResultTitle');
+    if (legendTitle) {
+        legendTitle.innerHTML = `Nội dung báo cáo trực tiếp (Không bắt buộc nếu đã gửi file đính kèm) - <span style="color: #d32f2f; font-weight: bold;">KẾT QUẢ THỰC HIỆN THÁNG ${prevMonth}/${prevYear}</span>`;
+    }
+};
 
     // ================= TAB 1: BÁO CÁO =================
     window.loadReportData = async function() {
